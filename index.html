@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>BABLOSA — Prototype (EN)</title>
+<title>BABLOSA — HEADS &amp; TAILS: Free Coin Flip Game, Guess &amp; Collect Coins</title>
+<meta name="description" content="BABLOSA HEADS &amp; TAILS is a free coin flip game: stake your coins, guess heads or tails, shake and collect bablos. Just for fun, no real money.">
+<meta name="keywords" content="coin flip game, heads or tails, heads and tails game, flip a coin, guess the side, coin collection game, free browser game, BABLOSA">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0b3d2e">
+<meta property="og:type" content="website">
+<meta property="og:title" content="BABLOSA — HEADS &amp; TAILS: Free Coin Flip Game">
+<meta property="og:description" content="Stake your coins, guess heads or tails, shake and collect bablos. A free coin flip game just for fun.">
 <style>
 :root{
   --bg:#0b3d2e; --panel:#0f4a37; --gold:#e6c458; --gold-dark:#b8912e;
@@ -40,7 +47,7 @@ h1{font-size:1.15rem; text-align:center; letter-spacing:1px; margin:6px 0 2px;}
 @keyframes flip{ 0%{transform:scaleX(1);} 50%{transform:scaleX(0);} 100%{transform:scaleX(1);} }
 .coin.matched{box-shadow:0 0 0 3px var(--win), 0 3px 6px rgba(0,0,0,.4);}
 /* Монета игрока, только что выбранная из кошелька, "прилетает" сверху в поле ставки. */
-.coin-wrap.fly-in-down{ animation:flyInDown .35s ease-out; }
+.coin-wrap.fly-in-down{ animation:flyInDown .7s ease-out; }
 @keyframes flyInDown{ 0%{transform:translateY(-46px); opacity:0;} 100%{transform:translateY(0); opacity:1;} }
 /* Монета банка "прилетает" в поле "Монеты банка" с правой стороны. */
 .coin-wrap.fly-in-right{ animation:flyInRight .35s ease-out; }
@@ -49,7 +56,7 @@ h1{font-size:1.15rem; text-align:center; letter-spacing:1px; margin:6px 0 2px;}
 .coin-wrap.fly-to-wallet{ animation:flyToWallet .5s ease-in forwards; }
 @keyframes flyToWallet{ 0%{transform:translateY(0) scale(1); opacity:1;} 100%{transform:translateY(-90px) scale(.35); opacity:0;} }
 /* Проигранные монеты вылетают вправо из поля "Монеты в игре". */
-.coin-wrap.fly-out-right{ animation:flyOutRight .5s ease-in forwards; }
+.coin-wrap.fly-out-right{ animation:flyOutRight 1s ease-in forwards; }
 @keyframes flyOutRight{ 0%{transform:translateX(0); opacity:1;} 100%{transform:translateX(140px); opacity:0;} }
 .denom-badge{
   position:absolute; right:-3px; bottom:-3px; background:#0c2c21; color:var(--gold);
@@ -115,8 +122,15 @@ button:disabled{opacity:.4; cursor:default;}
 .result:empty{display:none;}
 .result .sub{font-size:.8rem; font-weight:400; color:var(--muted); display:block;}
 .result.win{color:var(--win);} .result.lose{color:var(--lose);}
+/* Блок итога раунда: после STOP заменяет кошелёк, после Play скрывается. */
+.round-result{display:none; text-align:center; font-size:2.1rem; font-weight:700; line-height:1.2; padding:18px 8px;}
+.round-result.win{color:var(--win);} .round-result.lose{color:var(--lose);}
+#gameplayArea.round-over #walletSection, #gameplayArea.round-over #guessSection{display:none;}
+#gameplayArea.round-over.field-clear #stakeArea, #gameplayArea.round-over.field-clear #bankSection{display:none !important;}
+#gameplayArea.round-over .round-result{display:block;}
 .stats{text-align:center; font-size:.78rem; color:var(--muted);}
-.reset-line{text-align:center; margin-top:10px;}
+.reset-line{text-align:center; margin-top:10px; display:none;}
+.reset-line.admin{display:block;}
 .reset-line button{background:none; border:1px solid var(--muted); color:var(--muted); border-radius:8px; padding:6px 12px; font-size:.72rem; font-weight:400; cursor:pointer;}
 .hint{text-align:center; font-size:1rem; font-weight:600; color:var(--muted); margin:2px 0 8px;}
 .note{text-align:center; font-size:.75rem; color:var(--gold);}
@@ -130,7 +144,7 @@ button:disabled{opacity:.4; cursor:default;}
 </head>
 <body>
 <div class="app">
-  <h1>BABLOSA — Prototype</h1>
+  <h1>BABLOSA — HEADS &amp; TAILS</h1>
   <div class="balance">Balance: <span id="balance">5</span> bablos</div>
   <div class="lives" id="livesLine"></div>
 
@@ -147,6 +161,8 @@ button:disabled{opacity:.4; cursor:default;}
       </div>
       <div id="exchangeArea" style="display:none"></div>
     </div>
+
+    <div class="section round-result" id="roundResult"></div>
 
     <div class="section" id="stakeArea" style="display:none">
       <div class="label" id="inGameLabel" style="display:none">Coins in Play</div>
@@ -273,10 +289,10 @@ if(isNaN(nextLifeRegenAt)) nextLifeRegenAt = null;
 // случайность — лишь плавно возвращает "невезучего" игрока к балансу,
 // снижая эффект длинных проигрышных серий.
 let lossStreak = parseInt(localStorage.getItem('bablosa_loss_streak')) || 0;
-const BASE_BIAS = 0.15;   // постоянный перекос в пользу игрока — 65/35 в каждом раунде
+const BASE_BIAS = 0.10;   // постоянный перекос в пользу игрока — 60/40 в каждом раунде
 const PITY_STEP = 0;      // серия проигрышей больше ничего не добавляет сверху
-const PITY_MAX = 0;       // ...потому что базовый перекос уже держит потолок 65/35 всегда
-// 65/35 действует с первого же раунда и не зависит от серии побед/поражений —
+const PITY_MAX = 0;       // ...потому что базовый перекос уже держит потолок 60/40 всегда
+// 60/40 действует с первого же раунда и не зависит от серии побед/поражений —
 // это не "подушка" на случай неудач, а постоянный перекос вероятности.
 function pityBias(){
   return BASE_BIAS + Math.min(lossStreak * PITY_STEP, PITY_MAX);
@@ -820,6 +836,7 @@ function evaluate(){
   const ownMatchedCoins = playerCoins.filter(c=>c.face===guess);
   const ownLostCoins = playerCoins.filter(c=>c.face!==guess);
   const bankMatchedCoins = bankCoins.filter(c=>c.face===guess);
+  const bankLostCoins = bankCoins.filter(c=>c.face!==guess);
   const matchedCount = ownMatchedCoins.length + bankMatchedCoins.length;
   const creditValue = selectedSum(ownMatchedCoins) + selectedSum(bankMatchedCoins);
   const net = creditValue - currentStake;
@@ -854,7 +871,10 @@ function evaluate(){
   const diff = creditValue - currentStake;
   const wonAmount = diff > 0 ? diff : 0;
   const lostAmount = diff < 0 ? -diff : 0;
-  resEl.innerHTML = `Won: ${wonAmount} B; Lost: ${lostAmount} B`;
+  const rrEl = document.getElementById('roundResult');
+  rrEl.className = 'section round-result';
+  rrEl.textContent = `Won: ${wonAmount} B; Lost: ${lostAmount} B`;
+  document.getElementById('gameplayArea').classList.add('round-over');
   track('round_played', {
     result: net > 0 ? 'win' : 'loss',
     stake: currentStake,
@@ -864,8 +884,8 @@ function evaluate(){
     balance_after: balance,
     guess: guess
   });
-  if(net > 0){ wins++; lossStreak = Math.floor(lossStreak/2); resEl.classList.add('win'); playSound('win'); }
-  else if(net < 0){ lossStreak++; resEl.classList.add('lose'); playSound('lose'); }
+  if(net > 0){ wins++; lossStreak = Math.floor(lossStreak/2); rrEl.classList.add('win'); playSound('win'); }
+  else if(net < 0){ lossStreak++; rrEl.classList.add('lose'); playSound('lose'); }
   else { playSound('click'); }
   // Выигранные монеты (свои угаданные + угаданные монеты банка) улетают
   // из поля "Монеты в игре" в кошелек; проигранные свои монеты улетают
@@ -875,6 +895,7 @@ function evaluate(){
   ownMatchedCoins.forEach(c=> c._anim = 'fly-to-wallet');
   bankMatchedCoins.forEach(c=> c._anim = 'fly-to-wallet');
   ownLostCoins.forEach(c=> c._anim = 'fly-out-right');
+  bankLostCoins.forEach(c=> c._anim = 'fly-out-right');
   renderAll(false,true);
   persist();
   renderStats();
@@ -882,9 +903,10 @@ function evaluate(){
   document.getElementById('againBtn').style.display = 'block';
   setTimeout(()=>{
     playerCoins = playerCoins.filter(c => !ownMatchedCoins.includes(c) && !ownLostCoins.includes(c));
-    bankCoins = bankCoins.filter(c => !bankMatchedCoins.includes(c));
+    bankCoins = bankCoins.filter(c => !bankMatchedCoins.includes(c) && !bankLostCoins.includes(c));
     renderAll(false,false);
-  }, 520);
+    document.getElementById('gameplayArea').classList.add('field-clear');
+  }, 1020);
 }
 function again(){
   guess = null; denomsLocked = false; locked = false; currentStake = 0;
@@ -896,6 +918,8 @@ function again(){
   document.getElementById('shakeBtn').disabled = true;
   document.getElementById('stopBtn').disabled = true;
   document.getElementById('againBtn').style.display = 'none';
+  document.getElementById('gameplayArea').classList.remove('round-over','field-clear');
+  document.getElementById('roundResult').textContent = '';
   document.getElementById('result').textContent = '';
   document.getElementById('result').className = 'result';
 }
@@ -914,10 +938,17 @@ function resetProgress(){
   localStorage.removeItem('bablosa_rounds');
   localStorage.removeItem('bablosa_wins');
   localStorage.removeItem('bablosa_lives');
+  localStorage.removeItem('bablosa_loss_streak');
   localStorage.removeItem('bablosa_next_regen');
   location.reload();
 }
 document.getElementById('resetBtn').addEventListener('click', resetProgress);
+// Кнопка Start Over видна только администратору: один раз откройте страницу
+// с ?admin=bablosa1505 — флаг запомнится в этом браузере.
+try{
+  if(/[?&]admin=bablosa1505(&|$)/.test(location.search)) localStorage.setItem('bablosa_admin','1');
+  if(localStorage.getItem('bablosa_admin')==='1') document.querySelector('.reset-line').classList.add('admin');
+}catch(e){}
 
 // ---- Обменник монет ----
 // Пока бесплатно и без ограничений (реклама/лимиты — отдельный шаг позже).
